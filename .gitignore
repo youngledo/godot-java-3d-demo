@@ -1,0 +1,24 @@
+# Godot 4+ specific ignores
+.godot/
+exports/
+bin/
+
+# IDE
+.idea/
+.claude/
+
+# Build
+target/
+META-INF/
+
+# OS
+.DS_Store
+
+# Log
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Godot UID files (editor-generated)
+*.uid
+

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://q3osrwkgcbi0"]
+
+[node name="CameraMode" type="CameraMode" unique_id=1506626699]
+process_mode = 3
+visible = false
+mouse_sensitivity = 0.001
