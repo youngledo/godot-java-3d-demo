@@ -2,6 +2,7 @@ package demo.enemies;
 
 import demo.Damageable;
 import demo.GameUtils;
+import demo.enemies.beetle_bot.BeetleBotSkin;
 import org.godot.Godot;
 import org.godot.annotation.Export;
 import org.godot.annotation.GodotClass;
@@ -28,7 +29,7 @@ public class Beetle extends RigidBody3D implements Damageable {
 
     private AnimationPlayer reactionAnimationPlayer;
     private Area3D detectionArea;
-    private Node3D beetleSkin;
+    private BeetleBotSkin beetleSkin;
     private NavigationAgent3D navigationAgent;
     private CollisionShape3D deathCollisionShape;
     private AudioStreamPlayer3D defeatSound;
@@ -40,7 +41,7 @@ public class Beetle extends RigidBody3D implements Damageable {
     public void _ready() {
         reactionAnimationPlayer = (AnimationPlayer) get_node("ReactionLabel/AnimationPlayer");
         detectionArea = (Area3D) get_node("PlayerDetectionArea");
-        beetleSkin = (Node3D) get_node("BeetlebotSkin");
+        beetleSkin = (BeetleBotSkin) get_node("BeetlebotSkin");
         navigationAgent = (NavigationAgent3D) get_node("NavigationAgent3D");
         deathCollisionShape = (CollisionShape3D) get_node("DeathCollisionShape");
         defeatSound = (AudioStreamPlayer3D) get_node("DefeatSound");
@@ -51,7 +52,7 @@ public class Beetle extends RigidBody3D implements Damageable {
         }
 
         if (beetleSkin != null) {
-            beetleSkin.call("idle");
+            beetleSkin.idle();
         }
     }
 
@@ -62,7 +63,7 @@ public class Beetle extends RigidBody3D implements Damageable {
         if (target != null && target.isValid()) {
             // Play walk animation
             if (beetleSkin != null) {
-                beetleSkin.call("walk");
+                beetleSkin.walk();
             }
 
             // Look at target (Y-level)
@@ -101,7 +102,7 @@ public class Beetle extends RigidBody3D implements Damageable {
         }
 
         if (beetleSkin != null) {
-            beetleSkin.call("power_off");
+            beetleSkin.powerOff();
         }
 
         // Disconnect detection signals
@@ -177,7 +178,7 @@ public class Beetle extends RigidBody3D implements Damageable {
                 reactionAnimationPlayer.call("play", "lost_player");
             }
             if (beetleSkin != null) {
-                beetleSkin.call("idle");
+                beetleSkin.idle();
             }
         }
     }

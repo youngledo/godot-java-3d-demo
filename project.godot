@@ -111,3 +111,10 @@ pause={
 
 3d/physics_engine="Jolt Physics"
 3d/default_gravity=16.0
+
+[gut]
+
+debug/test_extra_imports=false
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")

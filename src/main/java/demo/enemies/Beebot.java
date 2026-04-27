@@ -2,6 +2,7 @@ package demo.enemies;
 
 import demo.Damageable;
 import demo.GameUtils;
+import demo.enemies.bee_bot.BeeRoot;
 import demo.player.Bullet;
 import org.godot.Godot;
 import org.godot.annotation.Export;
@@ -35,7 +36,7 @@ public class Beebot extends RigidBody3D implements Damageable {
     private AnimationPlayer flyingAnimationPlayer;
     private Area3D detectionArea;
     private CollisionShape3D deathMeshCollider;
-    private Node3D beeRoot;
+    private BeeRoot beeRoot;
     private AudioStreamPlayer3D defeatSound;
 
     private double shootCount = 0;
@@ -48,7 +49,7 @@ public class Beebot extends RigidBody3D implements Damageable {
         flyingAnimationPlayer = (AnimationPlayer) get_node("MeshRoot/AnimationPlayer");
         detectionArea = (Area3D) get_node("PlayerDetectionArea");
         deathMeshCollider = (CollisionShape3D) get_node("DeathMeshCollider");
-        beeRoot = (Node3D) get_node("MeshRoot/bee_root");
+        beeRoot = (BeeRoot) get_node("MeshRoot/bee_root");
         defeatSound = (AudioStreamPlayer3D) get_node("DefeatSound");
 
         // Connect detection signals
@@ -62,7 +63,7 @@ public class Beebot extends RigidBody3D implements Damageable {
             flyingAnimationPlayer.call("play", "bob");
         }
         if (beeRoot != null) {
-            beeRoot.call("play_idle");
+            beeRoot.playIdle();
         }
     }
 
@@ -113,7 +114,7 @@ public class Beebot extends RigidBody3D implements Damageable {
         }
 
         if (beeRoot != null) {
-            beeRoot.call("play_poweroff");
+            beeRoot.playPoweroff();
         }
 
         // Disconnect detection signals
@@ -160,7 +161,7 @@ public class Beebot extends RigidBody3D implements Damageable {
     private void shootAtTarget() {
         if (target == null || !target.isValid()) return;
         if (beeRoot != null) {
-            beeRoot.call("play_spit_attack");
+            beeRoot.playSpitAttack();
         }
 
         Godot bulletInstance = GameUtils.loadAndInstantiate(BULLET_SCENE_PATH);

@@ -4,6 +4,7 @@ import org.godot.Godot;
 import org.godot.bridge.Bridge;
 import org.godot.core.GodotStringName;
 import org.godot.internal.api.ApiIndex;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Utility methods for the 3D TPS demo.
@@ -15,6 +16,9 @@ public final class GameUtils {
 
     private static Godot resourceLoader;
     private static Godot sceneTree;
+
+    /** Cache: scene path → PackedScene Godot wrapper. Prevents ref-count churn. */
+    private static final ConcurrentHashMap<String, Godot> SCENE_CACHE = new ConcurrentHashMap<>();
 
     public static synchronized Godot getResourceLoader() {
         if (resourceLoader == null) {
@@ -43,11 +47,15 @@ public final class GameUtils {
 
     /**
      * Load a PackedScene and instantiate it.
-     * Equivalent to GDScript's preload().instantiate().
+     * Caches the loaded PackedScene to avoid repeated load/instantiate cycles
+     * that cause Variant destroy/recreate ref-count churn on the PackedScene.
      */
     public static Godot loadAndInstantiate(String scenePath) {
-        Godot scene = loadResource(scenePath);
-        if (scene == null) return null;
+        Godot scene = SCENE_CACHE.computeIfAbsent(scenePath, GameUtils::loadResource);
+        if (scene == null || !scene.isValid()) {
+            SCENE_CACHE.remove(scenePath);
+            return null;
+        }
         Object instance = scene.call("instantiate");
         if (instance instanceof Godot godotInstance) {
             return godotInstance;

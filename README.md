@@ -97,11 +97,75 @@ godot-java-3d-demo/
 │   ├── FullScreenHandler.java       # Fullscreen toggle autoload
 │   └── GameUtils.java               # Resource loading utilities
 ├── native/                          # Fat JAR + native library
+├── tests/                           # GUT test scripts
+├── addons/gut/                      # GUT addon (not in repo, gitignored)
 ├── player/                          # Godot scenes (from GDQuest)
 ├── enemies/                         # Enemy scenes
 ├── [other Godot assets]             # .tscn, .tres, .glb, shaders, audio
 └── openspec/                        # Design documents
 ```
+
+## Testing
+
+The project uses [GUT](https://github.com/bitwes/Gut) (Godot Unit Testing) for automated GUI tests.
+
+### Run Tests
+
+```bash
+# Build + run all tests headlessly
+./run_tests.sh
+
+# Or run directly
+godot --path . --headless --scene tests/test_gut_entry.tscn
+```
+
+### Test Structure
+
+```
+tests/
+├── test_gut_entry.gd / .tscn   # Entry point: loads main scene + GUT, runs tests
+├── test_a_pause.gd              # Initial paused state (runs first)
+├── test_startup.gd              # Node existence checks
+├── test_demo_page.gd            # Pause/resume, button interactions
+├── test_camera.gd               # Camera distance and follow
+└── test_stability.gd            # Input actions, key press safety, player structure
+```
+
+### Add a New Test
+
+1. Create `tests/test_<name>.gd`:
+
+```gdscript
+extends GutTest
+
+var player: Node3D
+
+func _find(path: String) -> Node:
+    var root = get_tree().root
+    var pg = root.find_child("Playground", true, false)
+    if pg:
+        return pg.get_node_or_null(path)
+    return null
+
+func before_all():
+    await get_tree().process_frame
+    player = _find("Player") as Node3D
+    get_tree().paused = false
+    await get_tree().process_frame
+
+func test_something():
+    assert_not_null(player, "Player should exist")
+```
+
+2. GUT auto-discovers files matching `test_*.gd` in `res://tests/`.
+
+3. Run `./run_tests.sh` to verify.
+
+### Notes
+
+- `test_gut_entry.tscn` loads `main.tscn` as a child, then starts GUT. Tests access nodes via `find_child("Playground", ...)`.
+- GutRunner's GUI crashes in headless mode (Godot 4.6 bug), so we use `gut.gd` directly.
+- `test_a_pause.gd` runs first (alphabetical) to verify initial paused state before any test unpauses the scene.
 
 ## Architecture
 

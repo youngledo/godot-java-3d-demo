@@ -7,12 +7,12 @@ import org.godot.annotation.Export;
 import org.godot.annotation.GodotClass;
 import org.godot.annotation.GodotMethod;
 import org.godot.annotation.Signal;
+import org.godot.math.Basis;
+import org.godot.math.Transform3D;
 import org.godot.math.Vector3;
-import org.godot.node.AnimationPlayer;
 import org.godot.node.CharacterBody3D;
 import org.godot.node.Node;
 import org.godot.node.Node3D;
-import org.godot.node.ShapeCast3D;
 import org.godot.singleton.Input;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -70,17 +70,18 @@ public class Player extends CharacterBody3D implements Damageable {
     @Export
     public float grenadeCooldown = 0.5f;
 
-    // Node references
-    private Node3D rotationRoot;
+    // Node references — use Godot type to avoid ClassCastException
+    // when get_node() returns GenericGodotObject instead of typed wrapper.
+    private Godot rotationRoot;
     private CameraController cameraController;
-    private AnimationPlayer attackAnimationPlayer;
-    private ShapeCast3D groundShapecast;
+    private Godot attackAnimationPlayer;
+    private Godot groundShapecast;
     private GrenadeLauncher grenadeLauncher;
     private CharacterSkin characterSkin;
-    private Node3D aimReticle;
-    private Node coinsContainer;
-    private Node stepSound;
-    private Node landingSound;
+    private Godot aimReticle;
+    private Godot coinsContainer;
+    private Godot stepSound;
+    private Godot landingSound;
 
     // State
     private WeaponType equippedWeapon = WeaponType.DEFAULT;
@@ -100,21 +101,20 @@ public class Player extends CharacterBody3D implements Damageable {
         try {
             input.setMouse_mode((long) MOUSE_MODE_CAPTURED);
         } catch (RuntimeException e) {
-            // set_mouse_mode hash may differ between Godot versions; non-critical
             System.err.println("Warning: set_mouse_mode failed: " + e.getMessage());
         }
 
-        // Get node references
-        rotationRoot = (Node3D) get_node("CharacterRotationRoot");
-        cameraController = (CameraController) get_node("CameraController");
-        attackAnimationPlayer = (AnimationPlayer) get_node("CharacterRotationRoot/MeleeAnchor/AnimationPlayer");
-        groundShapecast = (ShapeCast3D) get_node("GroundShapeCast");
-        grenadeLauncher = (GrenadeLauncher) get_node("GrenadeLauncher");
-        characterSkin = (CharacterSkin) get_node("CharacterRotationRoot/CharacterSkin");
-        aimReticle = (Node3D) get_node("PlayerUI/AimRecticle");
-        coinsContainer = (Node) get_node("PlayerUI/CoinsContainer");
-        stepSound = (Node) get_node("StepSound");
-        landingSound = (Node) get_node("LandingSound");
+        // Get node references — use safeGetNode to avoid ClassCastException
+        rotationRoot = safeGetNode("CharacterRotationRoot");
+        cameraController = safeGetNodeAs("CameraController", CameraController.class);
+        attackAnimationPlayer = safeGetNode("CharacterRotationRoot/MeleeAnchor/AnimationPlayer");
+        groundShapecast = safeGetNode("GroundShapeCast");
+        grenadeLauncher = safeGetNodeAs("GrenadeLauncher", GrenadeLauncher.class);
+        characterSkin = safeGetNodeAs("CharacterRotationRoot/CharacterSkin", CharacterSkin.class);
+        aimReticle = safeGetNode("PlayerUI/AimRecticle");
+        coinsContainer = safeGetNode("PlayerUI/CoinsContainer");
+        stepSound = safeGetNode("StepSound");
+        landingSound = safeGetNode("LandingSound");
 
         // Setup camera
         if (cameraController != null) {
@@ -157,8 +157,44 @@ public class Player extends CharacterBody3D implements Damageable {
         registerInputActions();
     }
 
+    /** Get a node by path, returning null safely without throwing. */
+    private Godot safeGetNode(String path) {
+        try {
+            Node n = get_node_or_null(path);
+            if (n instanceof Godot g) return g;
+            return null;
+        } catch (Exception e) {
+            System.err.println("Player: get_node('" + path + "') failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** Get a node and cast to a specific Godot subclass, returning null on failure. */
+    private <T extends Godot> T safeGetNodeAs(String path, Class<T> type) {
+        try {
+            Node n = get_node_or_null(path);
+            if (type.isInstance(n)) return type.cast(n);
+            // If it's a Godot but wrong type, still try to use it via call()
+            if (n instanceof Godot g && !(n instanceof Node)) return type.cast(g);
+            return null;
+        } catch (Exception e) {
+            System.err.println("Player: get_node('" + path + "') failed: " + e.getMessage());
+            return null;
+        }
+    }
+
     @Override
     public void _physicsProcess(double delta) {
+        try {
+            _physicsProcessInner(delta);
+        } catch (Exception e) {
+            // Catch any FFI or runtime errors to prevent hard crashes.
+            // The physics frame is simply skipped on error.
+            System.err.println("Player._physicsProcess error: " + e.getMessage());
+        }
+    }
+
+    private void _physicsProcessInner(double delta) {
         Input input = Input.singleton();
 
         // Ground height tracking
@@ -168,9 +204,9 @@ public class Player extends CharacterBody3D implements Damageable {
         if (input.is_action_just_pressed("swap_weapons", false)) {
             equippedWeapon = (equippedWeapon == WeaponType.DEFAULT) ? WeaponType.GRENADE : WeaponType.DEFAULT;
             if (grenadeLauncher != null) {
-                grenadeLauncher.call("set_visible", equippedWeapon == WeaponType.GRENADE);
+                try { grenadeLauncher.call("set_visible", equippedWeapon == WeaponType.GRENADE); } catch (Exception _) {}
             }
-            call("emit_signal", "weapon_switched", equippedWeapon.name());
+            try { call("emit_signal", "weapon_switched", equippedWeapon.name()); } catch (Exception _) {}
         }
 
         // Input state
@@ -190,12 +226,10 @@ public class Player extends CharacterBody3D implements Damageable {
         if (isAiming && cameraController != null) {
             try {
                 Object camForward = cameraController.call("get_global_transform");
-                if (camForward instanceof Node3D transform3d) {
-                    lastStrongDirection = transform3d.getPosition().normalized();
+                if (camForward instanceof Transform3D t) {
+                    lastStrongDirection = new Vector3(t.zx, t.zy, t.zz).mul(-1).normalized();
                 }
-            } catch (Exception _) {
-                // method hash not available
-            }
+            } catch (Exception _) {}
         }
 
         // Velocity interpolation
@@ -222,11 +256,11 @@ public class Player extends CharacterBody3D implements Damageable {
         }
 
         if (grenadeLauncher != null) {
-            grenadeLauncher.setAiming(isAiming && equippedWeapon == WeaponType.GRENADE);
+            try { grenadeLauncher.setAiming(isAiming && equippedWeapon == WeaponType.GRENADE); } catch (Exception _) {}
         }
 
         if (aimReticle != null) {
-            aimReticle.call("set_visible", isAiming);
+            try { aimReticle.call("set_visible", isAiming); } catch (Exception _) {}
         }
 
         // Attack logic
@@ -285,7 +319,7 @@ public class Player extends CharacterBody3D implements Damageable {
         // Landing sound
         boolean currentOnFloor = isOnFloor();
         if (currentOnFloor && !wasOnFloor && landingSound != null) {
-            landingSound.call("play");
+            try { landingSound.call("play"); } catch (Exception _) {}
         }
         wasOnFloor = currentOnFloor;
 
@@ -295,19 +329,21 @@ public class Player extends CharacterBody3D implements Damageable {
 
     private void attack() {
         if (attackAnimationPlayer != null) {
-            attackAnimationPlayer.call("play", "Attack");
+            try { attackAnimationPlayer.call("play", "Attack"); } catch (Exception _) {}
         }
         if (characterSkin != null) {
             characterSkin.punch();
         }
         // Apply forward impulse
         if (rotationRoot != null) {
-            Object basis = rotationRoot.call("get_global_transform");
-            if (basis instanceof Godot transform) {
-                Vector3 back = (Vector3) transform.call("get_basis_xform", new Vector3(0, 0, -1));
-                Vector3 impulse = back.mul(attackImpulse);
-                addVelocity(impulse.x, impulse.y, impulse.z);
-            }
+            try {
+                Object basis = rotationRoot.call("get_global_transform");
+                if (basis instanceof Godot transform) {
+                    Vector3 back = (Vector3) transform.call("get_basis_xform", new Vector3(0, 0, -1));
+                    Vector3 impulse = back.mul(attackImpulse);
+                    addVelocity(impulse.x, impulse.y, impulse.z);
+                }
+            } catch (Exception _) {}
         }
     }
 
@@ -384,9 +420,11 @@ public class Player extends CharacterBody3D implements Damageable {
     @GodotMethod
     public void playFootStepSound() {
         if (stepSound != null) {
-            double pitch = 1.2 + (Math.random() - 0.5) * 0.4;
-            stepSound.call("set_pitch_scale", pitch);
-            stepSound.call("play");
+            try {
+                double pitch = 1.2 + (Math.random() - 0.5) * 0.4;
+                stepSound.call("set_pitch_scale", pitch);
+                stepSound.call("play");
+            } catch (Exception _) {}
         }
     }
 
@@ -406,7 +444,7 @@ public class Player extends CharacterBody3D implements Damageable {
                 } else {
                     groundHeight = getPosition().y;
                 }
-            } catch (Exception e) {
+            } catch (Exception _) {
                 groundHeight = getPosition().y;
             }
         }
@@ -433,20 +471,18 @@ public class Player extends CharacterBody3D implements Damageable {
 
         // Transform by camera basis
         if (cameraController != null) {
-            Object camBasis = cameraController.call("get_global_transform");
-            if (camBasis instanceof Godot transform) {
-                Object basis = transform.call("get_basis");
-                if (basis instanceof org.godot.math.Basis b) {
-                    // Extract column vectors from the basis matrix
-                    Vector3 basisX = new Vector3(b.xx, b.xy, b.xz);
-                    Vector3 basisZ = new Vector3(b.zx, b.zy, b.zz);
+            try {
+                Object camTransform = cameraController.call("get_global_transform");
+                if (camTransform instanceof Transform3D t) {
+                    Vector3 basisX = new Vector3(t.xx, t.xy, t.xz);
+                    Vector3 basisZ = new Vector3(t.zx, t.zy, t.zz);
                     return new Vector3(
                         basisX.x * rawDirection.x + basisZ.x * rawDirection.z,
                         0,
                         basisX.z * rawDirection.x + basisZ.z * rawDirection.z
                     );
                 }
-            }
+            } catch (Exception _) {}
         }
 
         return rawDirection;
@@ -455,25 +491,24 @@ public class Player extends CharacterBody3D implements Damageable {
     private void orientCharacterToDirection(Vector3 direction, double delta) {
         if (rotationRoot == null || direction.length() < 0.01) return;
 
-        Vector3 up = new Vector3(0, 1, 0);
-        Vector3 left = up.cross(direction).normalized();
-        if (left.length() < 0.001) return;
+        try {
+            Vector3 up = new Vector3(0, 1, 0);
+            Vector3 left = up.cross(direction).normalized();
+            if (left.length() < 0.001) return;
 
-        // Build basis from three column vectors: left=X, up=Y, direction=Z
-        // Basis constructor takes 9 doubles in row-major order:
-        // (col0_x, col0_y, col0_z, col1_x, col1_y, col1_z, col2_x, col2_y, col2_z)
-        org.godot.math.Basis targetBasis = new org.godot.math.Basis(
-            left.x, left.y, left.z,
-            up.x, up.y, up.z,
-            direction.x, direction.y, direction.z
-        );
-        org.godot.math.Quaternion currentQuat = (org.godot.math.Quaternion) rotationRoot.call("get_quaternion");
-        org.godot.math.Quaternion targetQuat = targetBasis.toQuaternion();
+            org.godot.math.Basis targetBasis = new org.godot.math.Basis(
+                left.x, left.y, left.z,
+                up.x, up.y, up.z,
+                direction.x, direction.y, direction.z
+            );
+            Object currentQuatObj = rotationRoot.call("get_quaternion");
+            org.godot.math.Quaternion targetQuat = targetBasis.toQuaternion();
 
-        if (currentQuat != null && targetQuat != null) {
-            org.godot.math.Quaternion slerped = currentQuat.slerp(targetQuat, 1.0 - Math.exp(-rotationSpeed * delta));
-            rotationRoot.call("set_quaternion", slerped);
-        }
+            if (currentQuatObj instanceof org.godot.math.Quaternion currentQuat && targetQuat != null) {
+                org.godot.math.Quaternion slerped = currentQuat.slerp(targetQuat, 1.0 - Math.exp(-rotationSpeed * delta));
+                rotationRoot.call("set_quaternion", slerped);
+            }
+        } catch (Exception _) {}
     }
 
     private boolean isOnFloor() {
@@ -503,9 +538,13 @@ public class Player extends CharacterBody3D implements Damageable {
 
     private boolean isMeleeAnimationPlaying() {
         if (attackAnimationPlayer == null) return false;
-        Object playing = attackAnimationPlayer.call("is_playing");
-        Object currentAnim = attackAnimationPlayer.call("get_current_animation");
-        return playing instanceof Boolean p && p && "Attack".equals(currentAnim);
+        try {
+            Object playing = attackAnimationPlayer.call("is_playing");
+            Object currentAnim = attackAnimationPlayer.call("get_current_animation");
+            return playing instanceof Boolean p && p && "Attack".equals(currentAnim);
+        } catch (Exception _) {
+            return false;
+        }
     }
 
     private void registerInputActions() {

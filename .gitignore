@@ -22,3 +22,4 @@ replay_pid*.log
 # Godot UID files (editor-generated)
 *.uid
 
+addons/

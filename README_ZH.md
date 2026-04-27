@@ -97,11 +97,75 @@ godot-java-3d-demo/
 │   ├── FullScreenHandler.java       # 全屏切换（Autoload）
 │   └── GameUtils.java               # 资源加载工具
 ├── native/                          # Fat JAR + 原生库
+├── tests/                           # GUT 测试脚本
+├── addons/gut/                      # GUT 插件（不在仓库中，已 gitignore）
 ├── player/                          # Godot 场景（来自 GDQuest）
 ├── enemies/                         # 敌人场景
 ├── [其他 Godot 资源]                 # .tscn、.tres、.glb、着色器、音频
 └── openspec/                        # 设计文档
 ```
+
+## 测试
+
+项目使用 [GUT](https://github.com/bitwes/Gut) 进行自动化 GUI 测试。
+
+### 运行测试
+
+```bash
+# 构建 + headless 模式运行全部测试
+./run_tests.sh
+
+# 或直接运行
+godot --path . --headless --scene tests/test_gut_entry.tscn
+```
+
+### 测试结构
+
+```
+tests/
+├── test_gut_entry.gd / .tscn   # 入口：加载主场景 + GUT，启动测试
+├── test_a_pause.gd              # 初始暂停状态（最先运行）
+├── test_startup.gd              # 节点存在性检查
+├── test_demo_page.gd            # 暂停/恢复、按钮交互
+├── test_camera.gd               # 相机距离和跟随
+└── test_stability.gd            # 输入映射、按键安全性、玩家结构
+```
+
+### 新增测试
+
+1. 创建 `tests/test_<名称>.gd`：
+
+```gdscript
+extends GutTest
+
+var player: Node3D
+
+func _find(path: String) -> Node:
+    var root = get_tree().root
+    var pg = root.find_child("Playground", true, false)
+    if pg:
+        return pg.get_node_or_null(path)
+    return null
+
+func before_all():
+    await get_tree().process_frame
+    player = _find("Player") as Node3D
+    get_tree().paused = false
+    await get_tree().process_frame
+
+func test_something():
+    assert_not_null(player, "Player should exist")
+```
+
+2. GUT 自动发现 `res://tests/` 下匹配 `test_*.gd` 的文件。
+
+3. 运行 `./run_tests.sh` 验证。
+
+### 注意事项
+
+- `test_gut_entry.tscn` 先加载 `main.tscn` 作为子节点，再启动 GUT。测试中通过 `find_child("Playground", ...)` 访问场景节点。
+- GutRunner 的 GUI 在 headless 模式下会崩溃（Godot 4.6 bug），因此直接使用 `gut.gd` 核心。
+- `test_a_pause.gd` 按字母序最先运行，确保在任何测试取消暂停前验证初始 paused 状态。
 
 ## 架构
 

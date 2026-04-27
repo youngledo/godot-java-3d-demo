@@ -16,6 +16,9 @@ public class DemoPage extends Node {
         KEYBOARD, JOYPAD
     }
 
+    // PROCESS_MODE_ALWAYS = 3 — node processes even when scene tree is paused
+    private static final long PROCESS_MODE_ALWAYS = 3;
+
     private Control demoPageRoot;
     private Button resumeButton;
     private Button exitButton;
@@ -27,8 +30,17 @@ public class DemoPage extends Node {
     private int savedMouseMode = 0;
     private boolean isPaused = false;
 
+    // Deferred action flags — set during upcalls, processed in _process
+    private boolean pendingResume = false;
+    private boolean pendingPause = false;
+    private boolean pendingExit = false;
+
     @Override
     public void _ready() {
+        // Allow this node to process even when scene tree is paused
+        call("set_process_mode", PROCESS_MODE_ALWAYS);
+        call("set_process", true);
+
         demoPageRoot = (Control) get_node("CanvasLayer/DemoPageRoot");
         resumeButton = (Button) get_node("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Resume");
         exitButton = (Button) get_node("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Exit");
@@ -46,12 +58,12 @@ public class DemoPage extends Node {
         savedMouseMode = (int) Input.singleton().getMouse_mode();
         Input.singleton().setMouse_mode(0L); // MOUSE_MODE_VISIBLE
 
-        // Connect button signals
+        // Connect button signals — handlers only set deferred flags
         if (resumeButton != null) {
-            resumeButton.call("connect", "pressed", new org.godot.core.Callable(this, "resumeDemo"));
+            resumeButton.call("connect", "pressed", new org.godot.core.Callable(this, "onResumePressed"));
         }
         if (exitButton != null) {
-            exitButton.call("connect", "pressed", new org.godot.core.Callable(this, "exitGame"));
+            exitButton.call("connect", "pressed", new org.godot.core.Callable(this, "onExitPressed"));
         }
         if (keyboardButton != null) {
             keyboardButton.call("connect", "pressed", new org.godot.core.Callable(this, "showKeyboard"));
@@ -73,16 +85,44 @@ public class DemoPage extends Node {
         }
     }
 
+    @Override
+    public void _process(double delta) {
+        // Execute deferred actions — safe context since _process is a top-level upcall
+        // and any downcalls here won't trigger nested upcalls from set_pause
+        if (pendingResume) {
+            pendingResume = false;
+            doResume();
+        }
+        if (pendingPause) {
+            pendingPause = false;
+            doPause();
+        }
+        if (pendingExit) {
+            pendingExit = false;
+            doExit();
+        }
+    }
+
     public boolean _input(java.lang.Object event) {
+        if (event == null) return false;
         Input input = Input.singleton();
         if (input.is_action_just_pressed("pause", false)) {
             if (isPaused) {
-                resumeDemo();
+                pendingResume = true;
             } else {
-                pauseDemo();
+                pendingPause = true;
             }
         }
-        return false;
+        return isPaused;
+    }
+
+    // Signal handlers — only set deferred flags, no downcalls
+    public void onResumePressed() {
+        pendingResume = true;
+    }
+
+    public void onExitPressed() {
+        pendingExit = true;
     }
 
     public void changeInstruction(InstructionType type) {
@@ -98,37 +138,30 @@ public class DemoPage extends Node {
         }
     }
 
-    public void pauseDemo() {
+    private void doPause() {
         savedMouseMode = (int) Input.singleton().getMouse_mode();
+        if (demoPageRoot != null) {
+            demoPageRoot.call("set_visible", true);
+            demoPageRoot.call("set_modulate", new org.godot.math.Color(1, 1, 1, 1));
+        }
+        Input.singleton().setMouse_mode(0L);
+        isPaused = true;
         SceneTree tree = (SceneTree) call("get_tree");
         if (tree != null) {
             tree.call("set_pause", true);
         }
-        if (demoPageRoot != null) {
-            demoPageRoot.call("set_visible", true);
-            Object tween = demoPageRoot.call("create_tween");
-            if (tween instanceof Godot t) {
-                t.call("tween_property", demoPageRoot, "modulate:a", 1.0, 0.2);
-            }
-        }
-        Input.singleton().setMouse_mode(0L);
-        isPaused = true;
     }
 
-    public void resumeDemo() {
+    private void doResume() {
+        if (demoPageRoot != null) {
+            demoPageRoot.call("set_visible", false);
+        }
+        Input.singleton().setMouse_mode((long) savedMouseMode);
+        isPaused = false;
         SceneTree tree = (SceneTree) call("get_tree");
         if (tree != null) {
             tree.call("set_pause", false);
         }
-        if (demoPageRoot != null) {
-            Object tween = demoPageRoot.call("create_tween");
-            if (tween instanceof Godot t) {
-                t.call("tween_property", demoPageRoot, "modulate:a", 0.0, 0.2);
-                t.call("tween_callback", new org.godot.core.Callable(demoPageRoot, "hide"));
-            }
-        }
-        Input.singleton().setMouse_mode((long) savedMouseMode);
-        isPaused = false;
     }
 
     public void showKeyboard() {
@@ -139,7 +172,7 @@ public class DemoPage extends Node {
         changeInstruction(InstructionType.JOYPAD);
     }
 
-    public void exitGame() {
+    private void doExit() {
         SceneTree tree = (SceneTree) call("get_tree");
         if (tree != null) {
             tree.call("quit");

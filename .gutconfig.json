@@ -1,0 +1,9 @@
+{
+  "dirs": ["res://tests/"],
+  "should_exit": true,
+  "should_maximize": false,
+  "hide_orphans": true,
+  "ignore_pause_before": true,
+  "log_level": 2,
+  "include_subdirectories": true
+}
