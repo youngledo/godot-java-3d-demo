@@ -36,6 +36,7 @@ public class Beetle extends RigidBody3D implements Damageable {
 
     private Godot target = null;
     private boolean alive = true;
+    private double attackCooldown = 0;
 
     @Override
     public void _ready() {
@@ -60,6 +61,8 @@ public class Beetle extends RigidBody3D implements Damageable {
     public void _physicsProcess(double delta) {
         if (!alive) return;
 
+        attackCooldown = Math.max(0, attackCooldown - delta);
+
         if (target != null && target.isValid()) {
             // Play walk animation
             if (beetleSkin != null) {
@@ -68,17 +71,39 @@ public class Beetle extends RigidBody3D implements Damageable {
 
             // Look at target (Y-level)
             Vector3 targetPos = (Vector3) target.call("get_global_position");
-            lookAtY(targetPos);
+            Vector3 lookTarget = new Vector3(targetPos.x, getPosition().y, targetPos.z);
+            Vector3 lookDiff = lookTarget.sub(getPosition());
+            if (lookDiff.length() > 0.01) {
+                call("look_at", lookTarget);
+            }
 
-            // Navigate toward target
+            // Navigate toward target using move_and_collide for proper collision resolution
             if (navigationAgent != null) {
                 navigationAgent.call("set_target_position", targetPos);
-                Object nextPos = navigationAgent.call("get_next_path_position");
-                if (nextPos instanceof Vector3 next) {
-                    Vector3 direction = next.sub(getPosition()).normalized();
-                    Vector3 newPos = getPosition().add(direction.mul(3.0 * delta));
-                    call("set_global_position", newPos);
+
+                Object reached = navigationAgent.call("is_target_reached");
+                if (!(reached instanceof Boolean isReached && isReached)) {
+                    Object nextPos = navigationAgent.call("get_next_path_position");
+                    if (nextPos instanceof Vector3 next) {
+                        Vector3 direction = next.sub(getPosition());
+                        direction = new Vector3(direction.x, 0, direction.z).normalized();
+
+                        call("move_and_collide", direction.mul(3.0 * delta));
+                    }
                 }
+            }
+
+            // Check proximity to player for attack (replaces KinematicCollision3D collider detection)
+            Vector3 myPos = getPosition();
+            Vector3 diff = new Vector3(targetPos.x - myPos.x, 0, targetPos.z - myPos.z);
+            if (diff.length() < 1.5 && attackCooldown <= 0) {
+                Vector3 force = diff.normalized().mul(-10.0);
+                force = new Vector3(force.x, 0.5, force.z);
+                target.call("damage", diff, force);
+                if (beetleSkin != null) {
+                    beetleSkin.attack();
+                }
+                attackCooldown = 1.0;
             }
         }
     }
@@ -183,10 +208,4 @@ public class Beetle extends RigidBody3D implements Damageable {
         }
     }
 
-    private void lookAtY(Vector3 targetPos) {
-        Vector3 currentPos = getPosition();
-        Vector3 direction = targetPos.sub(currentPos);
-        double angle = Math.atan2(direction.x, direction.z);
-        call("set_rotation", new Vector3(0, angle, 0));
-    }
 }

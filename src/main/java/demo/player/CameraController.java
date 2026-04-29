@@ -55,10 +55,6 @@ public class CameraController extends Node3D {
 
     @Override
     public void _ready() {
-        // Use get_node_or_null and Godot type to avoid ClassCastException
-        // from typed casts (Camera3D, SpringArm3D etc) when the wrapper
-        // returned by get_node is a GenericGodotObject instead of the
-        // expected subclass.
         camera = safeGetNode("PlayerCamera");
         overShoulderPivot = safeGetNode("CameraOverShoulderPivot");
         cameraSpringArm = safeGetNode("CameraSpringArm");
@@ -122,20 +118,27 @@ public class CameraController extends Node3D {
         if (anchor != null) {
             Object anchorPosObj = anchor.call("get_global_position");
             if (anchorPosObj instanceof Vector3 anchorPos) {
-                double targetY = anchorPos.y + offset.y;
-                // Lerp to ground height if anchor is Player
+                // Match Kotlin: targetPosition = anchor.globalPosition + offset
+                // Then lerp Y toward ground height
+                Vector3 targetPos = new Vector3(
+                    anchorPos.x + offset.x,
+                    anchorPos.y + offset.y,
+                    anchorPos.z + offset.z
+                );
                 if (anchor instanceof Player player) {
-                    targetY = player.getGroundHeight() + offset.y;
+                    double groundHeight = player.getGroundHeight();
+                    double currentY = getPosition().y;
+                    // Lerp: currentY + (groundHeight - currentY) * 0.1
+                    targetPos = new Vector3(targetPos.x, currentY + (groundHeight - currentY) * 0.1, targetPos.z);
                 }
-                Vector3 targetPos = new Vector3(anchorPos.x + offset.x, targetY, anchorPos.z + offset.z);
                 call("set_global_position", targetPos);
             }
         }
 
-        // Apply rotation
+        // Apply rotation (match Kotlin: multiply by delta for frame-rate independence)
         eulerRotation = new Vector3(
-            eulerRotation.x + tiltInput,
-            eulerRotation.y + rotationInput,
+            eulerRotation.x + tiltInput * delta,
+            eulerRotation.y + rotationInput * delta,
             0
         );
         eulerRotation = new Vector3(
@@ -148,12 +151,13 @@ public class CameraController extends Node3D {
         call("set_rotation", eulerRotation);
 
         // Copy camera transform from active pivot
-        if (currentPivot != null && camera != null) {
+        if (currentPivot != null && camera != null
+                && call("is_inside_tree") instanceof Boolean selfInTree && selfInTree
+                && currentPivot.call("is_inside_tree") instanceof Boolean pivotInTree && pivotInTree) {
             try {
                 Object pivotTransform = currentPivot.call("get_global_transform");
                 camera.call("set_global_transform", pivotTransform);
             } catch (Exception e) {
-                // Transform copy failure should not crash the game
             }
         }
 
@@ -166,22 +170,22 @@ public class CameraController extends Node3D {
     public void setup(Godot anchorBody) {
         this.anchor = anchorBody;
 
-        // Calculate offset between camera and anchor positions
-        Vector3 selfPos = getPosition();
-        Object anchorPosObj = anchorBody.call("get_position");
-        if (anchorPosObj instanceof Vector3 anchorPos) {
-            offset = new Vector3(
-                selfPos.x - anchorPos.x,
-                selfPos.y - anchorPos.y,
-                selfPos.z - anchorPos.z
-            );
+        // Match Kotlin: set CameraController's transform to player's transform
+        try {
+            Object anchorTransform = anchorBody.call("get_global_transform");
+            call("set_global_transform", anchorTransform);
+        } catch (Exception e) {
+            System.err.println("Warning: set_global_transform in setup failed: " + e.getMessage());
         }
+
+        // Offset is zero since CameraController and Player share the same transform
+        offset = new Vector3(0, 0, 0);
 
         // Set initial pivot
         setPivot(CameraPivot.THIRD_PERSON);
 
         // Interpolate camera to pivot position
-        if (currentPivot != null && camera != null) {
+        if (currentPivot != null && camera != null && call("is_inside_tree") instanceof Boolean inTree && inTree) {
             try {
                 Object pivotTransform = currentPivot.call("get_global_transform");
                 camera.call("set_global_transform", pivotTransform);

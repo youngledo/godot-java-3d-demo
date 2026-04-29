@@ -58,10 +58,7 @@ public class Beebot extends RigidBody3D implements Damageable {
             detectionArea.call("connect", "body_exited", new org.godot.core.Callable(this, "_onBodyExited"));
         }
 
-        // Play idle animation
-        if (flyingAnimationPlayer != null) {
-            flyingAnimationPlayer.call("play", "bob");
-        }
+        // Play idle animation via AnimationTree state machine
         if (beeRoot != null) {
             beeRoot.playIdle();
         }
@@ -175,11 +172,11 @@ public class Beebot extends RigidBody3D implements Damageable {
         Vector3 targetPos = (Vector3) target.call("get_global_position");
         targetPos = targetPos.add(new Vector3(0, 1, 0));
         bulletInstance.call("set_global_position", getPosition().add(new Vector3(0, 1, 0)));
-        bulletInstance.call("set_shooter", this);
+        bulletInstance.call("setShooter", this);
 
         Vector3 direction = targetPos.sub(getPosition()).normalized();
-        bulletInstance.call("set_velocity", direction.mul(bulletSpeed));
-        bulletInstance.call("set_distance_limit", 14.0);
+        bulletInstance.call("setBulletVelocity", direction.mul(bulletSpeed));
+        bulletInstance.call("setDistanceLimit", 14.0);
     }
 
     private void spawnCoins() {

@@ -351,7 +351,7 @@ public class Player extends CharacterBody3D implements Damageable {
         Godot bulletInstance = GameUtils.loadAndInstantiate(BULLET_SCENE_PATH);
         if (bulletInstance == null) return;
 
-        bulletInstance.call("set_shooter", this);
+        bulletInstance.call("setShooter", this);
 
         Vector3 spawnPos = getPosition().add(new Vector3(0, 1, 0));
         bulletInstance.call("set_global_position", spawnPos);
@@ -366,8 +366,8 @@ public class Player extends CharacterBody3D implements Damageable {
         }
 
         Vector3 aimDirection = aimTarget.sub(spawnPos).normalized();
-        bulletInstance.call("set_velocity", aimDirection.mul(bulletSpeed));
-        bulletInstance.call("set_distance_limit", 14.0);
+        bulletInstance.call("setBulletVelocity", aimDirection.mul(bulletSpeed));
+        bulletInstance.call("setDistanceLimit", 14.0);
 
         // Add to parent and set position
         Godot parent = (Godot) call("get_parent");
@@ -459,9 +459,9 @@ public class Player extends CharacterBody3D implements Damageable {
         float rawX = (float) (-input.get_action_strength("move_left", false) + input.get_action_strength("move_right", false));
         float rawY = (float) (-input.get_action_strength("move_up", false) + input.get_action_strength("move_down", false));
 
-        // Circular deadzone correction
-        float inputX = rawX * (float) Math.sqrt(1.0 - (rawY * rawY) / 2.0);
-        float inputZ = rawY * (float) Math.sqrt(1.0 - (rawX * rawX) / 2.0);
+        // Circular deadzone correction (negate to match Kotlin: input.x = -rawInput.x * correction)
+        float inputX = -rawX * (float) Math.sqrt(1.0 - (rawY * rawY) / 2.0);
+        float inputZ = -rawY * (float) Math.sqrt(1.0 - (rawX * rawX) / 2.0);
 
         if (Math.abs(inputX) < 0.01 && Math.abs(inputZ) < 0.01) {
             return new Vector3(0, 0, 0);
