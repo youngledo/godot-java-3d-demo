@@ -53,6 +53,9 @@ public class CameraController extends Node3D {
     private Godot anchor;
     private Vector3 eulerRotation = new Vector3();
 
+    // Pre-allocated temp vectors to avoid per-frame heap allocation
+    private final Vector3 targetPos = new Vector3();
+
     @Override
     public void _ready() {
         camera = safeGetNode("PlayerCamera");
@@ -114,13 +117,11 @@ public class CameraController extends Node3D {
         // Update aim target
         updateAimTarget();
 
-        // Position at anchor + offset
+        // Position at anchor + offset (reuse targetPos to avoid allocation)
         if (anchor != null) {
             Object anchorPosObj = anchor.call("get_global_position");
             if (anchorPosObj instanceof Vector3 anchorPos) {
-                // Match Kotlin: targetPosition = anchor.globalPosition + offset
-                // Then lerp Y toward ground height
-                Vector3 targetPos = new Vector3(
+                targetPos.set(
                     anchorPos.x + offset.x,
                     anchorPos.y + offset.y,
                     anchorPos.z + offset.z
@@ -128,24 +129,17 @@ public class CameraController extends Node3D {
                 if (anchor instanceof Player player) {
                     double groundHeight = player.getGroundHeight();
                     double currentY = getPosition().y;
-                    // Lerp: currentY + (groundHeight - currentY) * 0.1
-                    targetPos = new Vector3(targetPos.x, currentY + (groundHeight - currentY) * 0.1, targetPos.z);
+                    targetPos.setY(currentY + (groundHeight - currentY) * 0.1);
                 }
                 call("set_global_position", targetPos);
             }
         }
 
-        // Apply rotation (match Kotlin: multiply by delta for frame-rate independence)
-        eulerRotation = new Vector3(
-            eulerRotation.x + tiltInput * delta,
-            eulerRotation.y + rotationInput * delta,
-            0
-        );
-        eulerRotation = new Vector3(
-            Math.max(tiltUpperLimit, Math.min(tiltLowerLimit, eulerRotation.x)),
-            eulerRotation.y,
-            0
-        );
+        // Apply rotation (mutate eulerRotation in-place)
+        eulerRotation.x += tiltInput * delta;
+        eulerRotation.y += rotationInput * delta;
+        eulerRotation.z = 0;
+        eulerRotation.x = Math.max(tiltUpperLimit, Math.min(tiltLowerLimit, eulerRotation.x));
 
         // Set rotation using euler angles (Godot uses YXZ convention)
         call("set_rotation", eulerRotation);
