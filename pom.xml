@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.1.0 https://maven.apache.org/xsd/maven-4.1.0.xsd"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 
-    <groupId>org.godot</groupId>
+    <groupId>io.github.youngledo</groupId>
     <artifactId>godot-java-3d-demo</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
@@ -23,7 +23,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.godot</groupId>
+            <groupId>io.github.youngledo</groupId>
             <artifactId>godot-java-core</artifactId>
             <version>${godot-java.version}</version>
         </dependency>
