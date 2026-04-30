@@ -1,6 +1,6 @@
 # godot-java-3d-demo
 
-[中文](README_ZH.md) | [ENGLISH](README.md)
+中文 | [ENGLISH](README.md)
 
 [godot-java](https://github.com/youngledo/godot-java) 的完整 3D 第三人称射击示例，改编自 GDQuest 的开源 demo。
 

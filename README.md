@@ -1,6 +1,6 @@
 # godot-java-3d-demo
 
-[中文](README_ZH.md) | [ENGLISH](README.md)
+ENGLISH | [中文](README_ZH.md)
 
 A complete 3D third-person shooter demo for [godot-java](https://github.com/youngledo/godot-java), adapted from GDQuest's open-source demo.
 
