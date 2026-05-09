@@ -1,7 +1,7 @@
 package demo.demo_page;
 
-import org.godot.Godot;
 import org.godot.annotation.GodotClass;
+import org.godot.math.Color;
 import org.godot.node.Button;
 import org.godot.node.Control;
 import org.godot.node.GridContainer;
@@ -16,7 +16,6 @@ public class DemoPage extends Node {
         KEYBOARD, JOYPAD
     }
 
-    // PROCESS_MODE_ALWAYS = 3 — node processes even when scene tree is paused
     private static final long PROCESS_MODE_ALWAYS = 3;
 
     private Control demoPageRoot;
@@ -30,55 +29,45 @@ public class DemoPage extends Node {
     private int savedMouseMode = 0;
     private boolean isPaused = false;
 
-    // Deferred action flags — set during upcalls, processed in _process
     private boolean pendingResume = false;
     private boolean pendingPause = false;
     private boolean pendingExit = false;
 
     @Override
     public void _ready() {
-        // Allow this node to process even when scene tree is paused
-        call("set_process_mode", PROCESS_MODE_ALWAYS);
-        call("set_process", true);
+        setProcessMode(PROCESS_MODE_ALWAYS);
+        setProcess(true);
 
-        demoPageRoot = (Control) get_node("CanvasLayer/DemoPageRoot");
-        resumeButton = (Button) get_node("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Resume");
-        exitButton = (Button) get_node("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Exit");
-        keyboardButton = (Button) get_node("%KeyboardButton");
-        joypadButton = (Button) get_node("%JoypadButton");
-        gridContainerKeyboard = (GridContainer) get_node("%GridContainerKeyboard");
-        gridContainerJoypad = (GridContainer) get_node("%GridContainerJoypad");
+        demoPageRoot = getNodeAs("CanvasLayer/DemoPageRoot", Control.class);
+        resumeButton = getNodeAs("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Resume", Button.class);
+        exitButton = getNodeAs("CanvasLayer/DemoPageRoot/Content/MarginContainer/Buttons/Exit", Button.class);
+        keyboardButton = getNodeAs("%KeyboardButton", Button.class);
+        joypadButton = getNodeAs("%JoypadButton", Button.class);
+        gridContainerKeyboard = getNodeAs("%GridContainerKeyboard", GridContainer.class);
+        gridContainerJoypad = getNodeAs("%GridContainerJoypad", GridContainer.class);
 
-        // Pause tree
-        SceneTree tree = (SceneTree) call("get_tree");
+        SceneTree tree = getTree();
         if (tree != null) {
-            tree.call("set_pause", true);
+            tree.setPause(true);
         }
 
-        savedMouseMode = (int) Input.singleton().getMouse_mode();
-        Input.singleton().setMouse_mode(0L); // MOUSE_MODE_VISIBLE
+        savedMouseMode = (int) Input.singleton().getMouseMode();
+        Input.singleton().setMouseMode(0L);
 
-        // Connect button signals — handlers only set deferred flags
         if (resumeButton != null) {
-            resumeButton.call("connect", "pressed", new org.godot.core.Callable(this, "onResumePressed"));
+            resumeButton.connect("pressed", new org.godot.core.Callable(this, "onResumePressed"));
         }
         if (exitButton != null) {
-            exitButton.call("connect", "pressed", new org.godot.core.Callable(this, "onExitPressed"));
+            exitButton.connect("pressed", new org.godot.core.Callable(this, "onExitPressed"));
         }
         if (keyboardButton != null) {
-            keyboardButton.call("connect", "pressed", new org.godot.core.Callable(this, "showKeyboard"));
+            keyboardButton.connect("pressed", new org.godot.core.Callable(this, "showKeyboard"));
         }
         if (joypadButton != null) {
-            joypadButton.call("connect", "pressed", new org.godot.core.Callable(this, "showJoypad"));
+            joypadButton.connect("pressed", new org.godot.core.Callable(this, "showJoypad"));
         }
 
-        // Auto-detect joypad
-        Object joypads = Input.singleton().call("get_connected_joypads");
-        int count = 0;
-        if (joypads instanceof Object[] arr) {
-            count = arr.length;
-        }
-        if (count == 0) {
+        if (Input.singleton().getConnectedJoypads().length == 0) {
             showKeyboard();
         } else {
             showJoypad();
@@ -87,8 +76,6 @@ public class DemoPage extends Node {
 
     @Override
     public void _process(double delta) {
-        // Execute deferred actions — safe context since _process is a top-level upcall
-        // and any downcalls here won't trigger nested upcalls from set_pause
         if (pendingResume) {
             pendingResume = false;
             doResume();
@@ -104,9 +91,8 @@ public class DemoPage extends Node {
     }
 
     public boolean _input(java.lang.Object event) {
-        if (event == null) return false;
         Input input = Input.singleton();
-        if (input.is_action_just_pressed("pause", false)) {
+        if (input.isActionJustPressed("pause", false)) {
             if (isPaused) {
                 pendingResume = true;
             } else {
@@ -116,7 +102,6 @@ public class DemoPage extends Node {
         return isPaused;
     }
 
-    // Signal handlers — only set deferred flags, no downcalls
     public void onResumePressed() {
         pendingResume = true;
     }
@@ -127,40 +112,40 @@ public class DemoPage extends Node {
 
     public void changeInstruction(InstructionType type) {
         if (keyboardButton != null) {
-            keyboardButton.call("set_modulate", type == InstructionType.KEYBOARD
-                    ? new org.godot.math.Color(1, 1, 1, 1)
-                    : new org.godot.math.Color(1, 1, 1, 0.5));
+            keyboardButton.setModulate(type == InstructionType.KEYBOARD
+                    ? new Color(1, 1, 1, 1)
+                    : new Color(1, 1, 1, 0.5));
         }
         if (joypadButton != null) {
-            joypadButton.call("set_modulate", type == InstructionType.JOYPAD
-                    ? new org.godot.math.Color(1, 1, 1, 1)
-                    : new org.godot.math.Color(1, 1, 1, 0.5));
+            joypadButton.setModulate(type == InstructionType.JOYPAD
+                    ? new Color(1, 1, 1, 1)
+                    : new Color(1, 1, 1, 0.5));
         }
     }
 
     private void doPause() {
-        savedMouseMode = (int) Input.singleton().getMouse_mode();
+        savedMouseMode = (int) Input.singleton().getMouseMode();
         if (demoPageRoot != null) {
-            demoPageRoot.call("set_visible", true);
-            demoPageRoot.call("set_modulate", new org.godot.math.Color(1, 1, 1, 1));
+            demoPageRoot.setVisible(true);
+            demoPageRoot.setModulate(new Color(1, 1, 1, 1));
         }
-        Input.singleton().setMouse_mode(0L);
+        Input.singleton().setMouseMode(0L);
         isPaused = true;
-        SceneTree tree = (SceneTree) call("get_tree");
+        SceneTree tree = getTree();
         if (tree != null) {
-            tree.call("set_pause", true);
+            tree.setPause(true);
         }
     }
 
     private void doResume() {
         if (demoPageRoot != null) {
-            demoPageRoot.call("set_visible", false);
+            demoPageRoot.setVisible(false);
         }
-        Input.singleton().setMouse_mode((long) savedMouseMode);
+        Input.singleton().setMouseMode(savedMouseMode);
         isPaused = false;
-        SceneTree tree = (SceneTree) call("get_tree");
+        SceneTree tree = getTree();
         if (tree != null) {
-            tree.call("set_pause", false);
+            tree.setPause(false);
         }
     }
 
@@ -173,9 +158,9 @@ public class DemoPage extends Node {
     }
 
     private void doExit() {
-        SceneTree tree = (SceneTree) call("get_tree");
+        SceneTree tree = getTree();
         if (tree != null) {
-            tree.call("quit");
+            tree.quit();
         }
     }
 }

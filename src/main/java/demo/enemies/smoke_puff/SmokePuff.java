@@ -1,6 +1,5 @@
 package demo.enemies.smoke_puff;
 
-import org.godot.Godot;
 import org.godot.annotation.GodotClass;
 import org.godot.node.AnimationPlayer;
 import org.godot.node.AudioStreamPlayer3D;
@@ -15,28 +14,25 @@ public class SmokePuff extends Node3D {
 
     @Override
     public void _ready() {
-        animationPlayer = (AnimationPlayer) get_node("AnimationPlayer");
-        smokeSounds = get_node("SmokeSounds");
+        animationPlayer = getNodeAs("AnimationPlayer", AnimationPlayer.class);
+        smokeSounds = getNode("SmokeSounds");
 
-        // Play random smoke sound
         if (smokeSounds != null) {
-            Object children = smokeSounds.call("get_children");
-            if (children instanceof Node[] kids && kids.length > 0) {
-                int idx = (int) (Math.random() * kids.length);
-                if (kids[idx] instanceof AudioStreamPlayer3D sound) {
-                    sound.call("play");
+            Node[] children = smokeSounds.getChildren();
+            if (children.length > 0) {
+                int idx = (int) (Math.random() * children.length);
+                if (children[idx] instanceof AudioStreamPlayer3D sound) {
+                    sound.play();
                 }
             }
         }
 
-        // Play poof animation
         if (animationPlayer != null) {
-            animationPlayer.call("play", "poof");
+            animationPlayer.play("poof");
         }
     }
 
-    // Called from animation keyframe at peak density
     public void smokeAtFullDensity() {
-        call("emit_signal", "full");
+        emitSignal("full");
     }
 }

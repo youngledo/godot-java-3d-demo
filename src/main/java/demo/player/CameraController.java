@@ -5,8 +5,12 @@ import org.godot.annotation.Export;
 import org.godot.annotation.GodotClass;
 import org.godot.math.Vector2;
 import org.godot.math.Vector3;
-import org.godot.node.Node;
+import org.godot.node.Camera3D;
+import org.godot.node.CollisionObject3D;
+import org.godot.node.InputEventMouseMotion;
 import org.godot.node.Node3D;
+import org.godot.node.RayCast3D;
+import org.godot.node.SpringArm3D;
 import org.godot.singleton.Input;
 
 @GodotClass(name = "CameraController", parent = "Node3D")
@@ -31,18 +35,15 @@ public class CameraController extends Node3D {
     @Export
     public float tiltLowerLimit = (float) Math.toRadians(60);
 
-    // Use Godot type to avoid ClassCastException when get_node() returns
-    // a GenericGodotObject wrapper instead of the expected typed wrapper.
-    // All operations use call() which works on any Godot object.
-    private Godot camera;
-    private Godot overShoulderPivot;
-    private Godot cameraSpringArm;
-    private Godot thirdPersonPivot;
-    private Godot cameraRaycast;
+    private Camera3D camera;
+    private Node3D overShoulderPivot;
+    private SpringArm3D cameraSpringArm;
+    private Node3D thirdPersonPivot;
+    private RayCast3D cameraRaycast;
 
     private Vector3 aimTarget = new Vector3();
     private Godot aimCollider = null;
-    private Godot currentPivot;
+    private Node3D currentPivot;
     private CameraPivot currentPivotType = CameraPivot.THIRD_PERSON;
 
     private double rotationInput = 0;
@@ -50,50 +51,26 @@ public class CameraController extends Node3D {
     private boolean isMouseInput = false;
 
     private Vector3 offset = new Vector3();
-    private Godot anchor;
+    private Player anchor;
     private Vector3 eulerRotation = new Vector3();
 
-    // Pre-allocated temp vectors to avoid per-frame heap allocation
     private final Vector3 targetPos = new Vector3();
 
     @Override
     public void _ready() {
-        camera = safeGetNode("PlayerCamera");
-        overShoulderPivot = safeGetNode("CameraOverShoulderPivot");
-        cameraSpringArm = safeGetNode("CameraSpringArm");
-        thirdPersonPivot = safeGetNode("CameraSpringArm/CameraThirdPersonPivot");
-        cameraRaycast = safeGetNode("PlayerCamera/CameraRayCast");
-    }
-
-    /** Get a node by path, returning null safely without throwing. */
-    private Godot safeGetNode(String path) {
-        try {
-            Node n = get_node_or_null(path);
-            if (n instanceof Godot g) return g;
-            return null;
-        } catch (Exception e) {
-            System.err.println("CameraController: get_node('" + path + "') failed: " + e.getMessage());
-            return null;
-        }
+        camera = getNodeAs("PlayerCamera", Camera3D.class);
+        overShoulderPivot = getNodeAs("CameraOverShoulderPivot", Node3D.class);
+        cameraSpringArm = getNodeAs("CameraSpringArm", SpringArm3D.class);
+        thirdPersonPivot = getNodeAs("CameraSpringArm/CameraThirdPersonPivot", Node3D.class);
+        cameraRaycast = getNodeAs("PlayerCamera/CameraRayCast", RayCast3D.class);
     }
 
     public boolean _unhandledInput(java.lang.Object event) {
-        if (event == null) return false;
-        if (!(event instanceof Godot gevent)) return false;
-        Object isMouseMotion = gevent.call("is_class", "InputEventMouseMotion");
-        if (isMouseMotion instanceof Boolean isMM && isMM) {
-            Object mouseMode = Input.singleton().getMouse_mode();
-            if (mouseMode instanceof Integer mode && mode == 2) { // MOUSE_MODE_CAPTURED
-                Object relative = gevent.call("get_relative");
-                if (relative instanceof Vector3 rel) {
-                    rotationInput = -rel.x * mouseSensitivity;
-                    tiltInput = -rel.y * mouseSensitivity;
-                } else if (relative instanceof Vector2 rel2) {
-                    rotationInput = -rel2.x * mouseSensitivity;
-                    tiltInput = -rel2.y * mouseSensitivity;
-                }
-                isMouseInput = true;
-            }
+        if (event instanceof InputEventMouseMotion mouseMotion && Input.singleton().getMouseMode() == 2L) {
+            Vector2 relative = mouseMotion.getRelative();
+            rotationInput = -relative.x * mouseSensitivity;
+            tiltInput = -relative.y * mouseSensitivity;
+            isMouseInput = true;
         }
         return false;
     }
@@ -102,106 +79,58 @@ public class CameraController extends Node3D {
     public void _process(double delta) {
         Input input = Input.singleton();
 
-        // Add joystick input
         if (!isMouseInput) {
-            rotationInput += input.get_action_strength("camera_right", false) * joystickSensitivity;
-            rotationInput -= input.get_action_strength("camera_left", false) * joystickSensitivity;
-            tiltInput += input.get_action_strength("camera_down", false) * joystickSensitivity;
-            tiltInput -= input.get_action_strength("camera_up", false) * joystickSensitivity;
+            rotationInput += input.getActionStrength("camera_right", false) * joystickSensitivity;
+            rotationInput -= input.getActionStrength("camera_left", false) * joystickSensitivity;
+            tiltInput += input.getActionStrength("camera_down", false) * joystickSensitivity;
+            tiltInput -= input.getActionStrength("camera_up", false) * joystickSensitivity;
         }
 
         if (invertMouseY) {
             tiltInput = -tiltInput;
         }
 
-        // Update aim target
         updateAimTarget();
 
-        // Position at anchor + offset (reuse targetPos to avoid allocation)
         if (anchor != null) {
-            Object anchorPosObj = anchor.call("get_global_position");
-            if (anchorPosObj instanceof Vector3 anchorPos) {
-                targetPos.set(
-                    anchorPos.x + offset.x,
-                    anchorPos.y + offset.y,
-                    anchorPos.z + offset.z
-                );
-                if (anchor instanceof Player player) {
-                    double groundHeight = player.getGroundHeight();
-                    double currentY = getPosition().y;
-                    targetPos.setY(currentY + (groundHeight - currentY) * 0.1);
-                }
-                call("set_global_position", targetPos);
-            }
+            Vector3 anchorPos = anchor.getGlobalPosition();
+            targetPos.set(anchorPos.x + offset.x, anchorPos.y + offset.y, anchorPos.z + offset.z);
+            double groundHeight = anchor.getGroundHeight();
+            double currentY = getPosition().y;
+            targetPos.setY(currentY + (groundHeight - currentY) * 0.1);
+            setGlobalPosition(targetPos);
         }
 
-        // Apply rotation (mutate eulerRotation in-place)
         eulerRotation.x += tiltInput * delta;
         eulerRotation.y += rotationInput * delta;
         eulerRotation.z = 0;
         eulerRotation.x = Math.max(tiltUpperLimit, Math.min(tiltLowerLimit, eulerRotation.x));
+        setRotation(eulerRotation);
 
-        // Set rotation using euler angles (Godot uses YXZ convention)
-        call("set_rotation", eulerRotation);
-
-        // Copy camera transform from active pivot
-        if (currentPivot != null && camera != null
-                && call("is_inside_tree") instanceof Boolean selfInTree && selfInTree
-                && currentPivot.call("is_inside_tree") instanceof Boolean pivotInTree && pivotInTree) {
-            try {
-                Object pivotTransform = currentPivot.call("get_global_transform");
-                camera.call("set_global_transform", pivotTransform);
-            } catch (Exception e) {
-            }
+        if (currentPivot != null && camera != null && isInsideTree() && currentPivot.isInsideTree()) {
+            camera.setGlobalTransform(currentPivot.getGlobalTransform());
         }
 
-        // Reset input
         rotationInput = 0;
         tiltInput = 0;
         isMouseInput = false;
     }
 
-    public void setup(Godot anchorBody) {
+    public void setup(Player anchorBody) {
         this.anchor = anchorBody;
-
-        // Match Kotlin: set CameraController's transform to player's transform
-        try {
-            Object anchorTransform = anchorBody.call("get_global_transform");
-            call("set_global_transform", anchorTransform);
-        } catch (Exception e) {
-            System.err.println("Warning: set_global_transform in setup failed: " + e.getMessage());
-        }
-
-        // Offset is zero since CameraController and Player share the same transform
+        setGlobalTransform(anchorBody.getGlobalTransform());
         offset = new Vector3(0, 0, 0);
-
-        // Set initial pivot
         setPivot(CameraPivot.THIRD_PERSON);
 
-        // Interpolate camera to pivot position
-        if (currentPivot != null && camera != null && call("is_inside_tree") instanceof Boolean inTree && inTree) {
-            try {
-                Object pivotTransform = currentPivot.call("get_global_transform");
-                camera.call("set_global_transform", pivotTransform);
-            } catch (Exception e) {
-                System.err.println("Warning: initial camera transform failed: " + e.getMessage());
-            }
+        if (currentPivot != null && camera != null && isInsideTree()) {
+            camera.setGlobalTransform(currentPivot.getGlobalTransform());
         }
 
-        // Exclude anchor from spring arm and raycast
         if (cameraSpringArm != null) {
-            try {
-                cameraSpringArm.call("add_excluded_object", anchorBody.call("get_rid"));
-            } catch (Exception e) {
-                System.err.println("Warning: add_excluded_object failed: " + e.getMessage());
-            }
+            cameraSpringArm.addExcludedObject(anchorBody.getRid());
         }
         if (cameraRaycast != null) {
-            try {
-                cameraRaycast.call("add_exception", anchorBody);
-            } catch (Exception e) {
-                System.err.println("Warning: add_exception failed: " + e.getMessage());
-            }
+            cameraRaycast.addException(anchorBody);
         }
     }
 
@@ -210,10 +139,8 @@ public class CameraController extends Node3D {
         switch (pivotType) {
             case OVER_SHOULDER -> {
                 currentPivot = overShoulderPivot;
-                if (aimTarget != null && currentPivot != null) {
-                    try {
-                        currentPivot.call("look_at", aimTarget);
-                    } catch (Exception _) {}
+                if (currentPivot != null) {
+                    currentPivot.lookAt(aimTarget);
                 }
             }
             case THIRD_PERSON -> currentPivot = thirdPersonPivot;
@@ -234,22 +161,11 @@ public class CameraController extends Node3D {
     private void updateAimTarget() {
         if (cameraRaycast == null) return;
 
-        try {
-            Object isColliding = cameraRaycast.call("is_colliding");
-            if (isColliding instanceof Boolean colliding && colliding) {
-                Object collider = cameraRaycast.call("get_collider");
-                Object point = cameraRaycast.call("get_collision_point");
-                if (point instanceof Vector3 p) {
-                    aimTarget = p;
-                }
-                if (collider instanceof Godot c) {
-                    aimCollider = c;
-                }
-            } else {
-                aimCollider = null;
-            }
-        } catch (Exception _) {
-            // Raycast operations can fail if the node is invalid
+        if (cameraRaycast.isColliding()) {
+            aimTarget = cameraRaycast.getCollisionPoint();
+            aimCollider = cameraRaycast.getCollider();
+        } else {
+            aimCollider = null;
         }
     }
 }

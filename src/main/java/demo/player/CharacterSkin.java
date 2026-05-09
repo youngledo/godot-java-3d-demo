@@ -1,9 +1,8 @@
 package demo.player;
 
-import org.godot.Godot;
 import org.godot.annotation.GodotClass;
 import org.godot.annotation.Signal;
-import org.godot.node.AnimationPlayer;
+import org.godot.node.AnimationNodeStateMachinePlayback;
 import org.godot.node.AnimationTree;
 import org.godot.node.Node3D;
 
@@ -16,16 +15,18 @@ public class CharacterSkin extends Node3D {
     private static final String MOVE_BLEND_PATH = "parameters/StateMachine/move/blend_position";
 
     private AnimationTree animationTree;
-    private Godot stateMachine;
+    private AnimationNodeStateMachinePlayback stateMachine;
     private boolean moving = false;
-    private double movingSpeed = 0.0;
 
     @Override
     public void _ready() {
-        animationTree = (AnimationTree) get_node("AnimationTree");
+        animationTree = getNodeAs("AnimationTree", AnimationTree.class);
         if (animationTree != null) {
-            animationTree.call("set_active", true);
-            stateMachine = (Godot) animationTree.call("get", "parameters/StateMachine/playback");
+            animationTree.setActive(true);
+            Object playback = animationTree.get("parameters/StateMachine/playback");
+            if (playback instanceof AnimationNodeStateMachinePlayback stateMachinePlayback) {
+                stateMachine = stateMachinePlayback;
+            }
         }
     }
 
@@ -33,42 +34,36 @@ public class CharacterSkin extends Node3D {
         if (moving == value) return;
         moving = value;
         if (stateMachine != null) {
-            if (moving) {
-                stateMachine.call("travel", "move");
-            } else {
-                stateMachine.call("travel", "idle");
-            }
+            stateMachine.travel(moving ? "move" : "idle");
         }
     }
 
     public void setMovingSpeed(double value) {
         value = Math.max(0.0, Math.min(1.0, value));
-        movingSpeed = value;
         if (animationTree != null) {
-            animationTree.call("set", MOVE_BLEND_PATH, value);
+            animationTree.set(MOVE_BLEND_PATH, value);
         }
     }
 
     public void jump() {
         if (stateMachine != null) {
-            stateMachine.call("travel", "jump");
+            stateMachine.travel("jump");
         }
     }
 
     public void fall() {
         if (stateMachine != null) {
-            stateMachine.call("travel", "fall");
+            stateMachine.travel("fall");
         }
     }
 
     public void punch() {
         if (animationTree != null) {
-            animationTree.call("set", "parameters/PunchOneShot/request", 1);
+            animationTree.set("parameters/PunchOneShot/request", 1);
         }
     }
 
-    // Called from animation keyframes
     public void _step() {
-        call("emit_signal", "stepped");
+        emitSignal("stepped");
     }
 }

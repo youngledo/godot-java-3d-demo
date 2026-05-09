@@ -1,11 +1,12 @@
 package demo.player;
 
+import demo.Damageable;
 import org.godot.Godot;
 import org.godot.annotation.Export;
 import org.godot.annotation.GodotClass;
 import org.godot.math.Vector3;
 import org.godot.node.Area3D;
-import org.godot.node.Node;
+import org.godot.node.AudioStreamPlayer3D;
 import org.godot.node.Node3D;
 
 @GodotClass(name = "Bullet", parent = "Node3D")
@@ -20,65 +21,52 @@ public class Bullet extends Node3D {
     private double aliveLimit = 1.0;
     private Area3D area;
     private Node3D bulletVisuals;
-    private Node projectileSound;
+    private AudioStreamPlayer3D projectileSound;
 
     @Override
     public void _ready() {
-        area = (Area3D) get_node("Area3d");
-        bulletVisuals = (Node3D) get_node("Bullet");
-        projectileSound = (Node) get_node("ProjectileSound");
+        area = getNodeAs("Area3d", Area3D.class);
+        bulletVisuals = getNodeAs("Bullet", Node3D.class);
+        projectileSound = getNodeAs("ProjectileSound", AudioStreamPlayer3D.class);
 
-        // Look at velocity direction
         if (velocity.length() > 0.01) {
-            call("look_at", getPosition().add(velocity));
+            lookAt(getPosition().add(velocity));
         }
 
-        // Calculate alive limit
         if (velocity.length() > 0.01) {
             aliveLimit = distanceLimit / velocity.length();
         }
 
-        // Play sound with random pitch
         if (projectileSound != null) {
-            double pitch = 0.8 + Math.random() * 0.4;
-            projectileSound.call("set_pitch_scale", pitch);
-            projectileSound.call("play");
+            projectileSound.setPitchScale(0.8 + Math.random() * 0.4);
+            projectileSound.play();
         }
 
-        // Connect body_entered signal
         if (area != null) {
-            area.call("connect", "body_entered", new org.godot.core.Callable(this, "_onBodyEntered"));
+            area.connect("body_entered", new org.godot.core.Callable(this, "_onBodyEntered"));
         }
     }
 
     @Override
     public void _process(double delta) {
-        // Move
         Vector3 pos = getPosition();
         Vector3 newPos = pos.add(velocity.mul(delta));
         setPosition(new Vector3(newPos.x, newPos.y, newPos.z));
 
-        // Scale decay (visual)
         timeAlive += delta;
         if (timeAlive >= aliveLimit) {
-            call("queue_free");
+            queueFree();
         }
     }
 
     public void _onBodyEntered(Godot body) {
-        // Ignore shooter
         if (body == shooter) return;
 
-        // Check if damageable
-        Object inGroup = body.call("is_in_group", "damageables");
-        if (inGroup instanceof Boolean isDmg && isDmg) {
-            // Calculate impact point and force
-            Vector3 impactPoint = getPosition();
-            Vector3 force = velocity;
-            body.call("damage", impactPoint, force);
+        if (body instanceof Damageable damageable) {
+            damageable.damage(getPosition(), velocity);
         }
 
-        call("queue_free");
+        queueFree();
     }
 
     public void setShooter(Godot shooter) {

@@ -2,12 +2,15 @@ package demo.box;
 
 import demo.Damageable;
 import demo.GameUtils;
-import org.godot.Godot;
+import demo.player.coin.Coin;
 import org.godot.annotation.GodotClass;
 import org.godot.math.Vector3;
 import org.godot.node.AudioStreamPlayer3D;
 import org.godot.node.CollisionShape3D;
+import org.godot.node.Node;
 import org.godot.node.RigidBody3D;
+import org.godot.node.SceneTree;
+import org.godot.node.SceneTreeTimer;
 
 @GodotClass(name = "Box", parent = "RigidBody3D")
 public class Box extends RigidBody3D implements Damageable {
@@ -21,59 +24,54 @@ public class Box extends RigidBody3D implements Damageable {
 
     @Override
     public void _ready() {
-        destroySound = (AudioStreamPlayer3D) get_node("DestroySound");
-        collisionShape = (CollisionShape3D) get_node("CollisionShape3d");
+        destroySound = getNodeAs("DestroySound", AudioStreamPlayer3D.class);
+        collisionShape = getNodeAs("CollisionShape3d", CollisionShape3D.class);
     }
 
     @Override
     public void damage(Vector3 impactPoint, Vector3 force) {
-        // Spawn coins
         for (int i = 0; i < COINS_COUNT; i++) {
-            Godot coin = GameUtils.loadAndInstantiate(COIN_SCENE_PATH);
+            Coin coin = GameUtils.loadAndInstantiate(COIN_SCENE_PATH, Coin.class);
             if (coin != null) {
-                Godot parent = (Godot) call("get_parent");
+                Node parent = getParent();
                 if (parent != null) {
-                    parent.call("add_child", coin);
+                    parent.addChild(coin);
                 }
-                coin.call("set_global_position", getPosition().add(new Vector3(0, 1, 0)));
-                coin.call("spawn", 0.5);
+                coin.setGlobalPosition(getPosition().add(new Vector3(0, 1, 0)));
+                coin.spawn(0.5);
             }
         }
 
-        // Spawn destroyed box
-        Godot destroyedBox = GameUtils.loadAndInstantiate(DESTROYED_BOX_SCENE_PATH);
+        DestroyedBox destroyedBox = GameUtils.loadAndInstantiate(DESTROYED_BOX_SCENE_PATH, DestroyedBox.class);
         if (destroyedBox != null) {
-            Godot parent = (Godot) call("get_parent");
+            Node parent = getParent();
             if (parent != null) {
-                parent.call("add_child", destroyedBox);
+                parent.addChild(destroyedBox);
             }
-            destroyedBox.call("set_global_position", getPosition());
-            destroyedBox.call("set_rotation", call("get_rotation"));
+            destroyedBox.setGlobalPosition(getPosition());
+            destroyedBox.setRotation(getRotation());
         }
 
-        // Disable collision
         if (collisionShape != null) {
-            collisionShape.call("set_disabled", true);
+            collisionShape.setDisabled(true);
         }
 
-        // Play destroy sound with random pitch
         if (destroySound != null) {
             double pitch = 0.8 + Math.random() * 0.4;
-            destroySound.call("set_pitch_scale", pitch);
-            destroySound.call("play");
+            destroySound.setPitchScale(pitch);
+            destroySound.play();
         }
 
-        // Queue free after delay
-        org.godot.node.SceneTree tree = (org.godot.node.SceneTree) call("get_tree");
+        SceneTree tree = getTree();
         if (tree != null) {
-            Godot timer = (Godot) tree.call("create_timer", 0.5);
+            SceneTreeTimer timer = tree.createTimer(0.5);
             if (timer != null) {
-                timer.call("connect", "timeout", new org.godot.core.Callable(this, "_queueFreeSelf"));
+                timer.connect("timeout", new org.godot.core.Callable(this, "_queueFreeSelf"));
             }
         }
     }
 
     public void _queueFreeSelf() {
-        call("queue_free");
+        queueFree();
     }
 }

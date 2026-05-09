@@ -7,6 +7,7 @@ import org.godot.annotation.GodotClass;
 import org.godot.math.Vector3;
 import org.godot.node.Marker3D;
 import org.godot.node.MeshInstance3D;
+import org.godot.node.Node;
 import org.godot.node.Node3D;
 import org.godot.node.ShapeCast3D;
 
@@ -36,15 +37,15 @@ public class GrenadeLauncher extends Node3D {
 
     @Override
     public void _ready() {
-        snapMesh = (Node3D) get_node_or_null("%SnapMesh");
-        raycast = (ShapeCast3D) get_node_or_null("%ShapeCast3D");
-        launchPoint = (Marker3D) get_node_or_null("%LaunchPoint");
-        trailMeshInstance = (MeshInstance3D) get_node_or_null("%TrailMeshInstance");
+        snapMesh = getNodeAs("%SnapMesh", Node3D.class);
+        raycast = getNodeAs("%ShapeCast3D", ShapeCast3D.class);
+        launchPoint = getNodeAs("%LaunchPoint", Marker3D.class);
+        trailMeshInstance = getNodeAs("%TrailMeshInstance", MeshInstance3D.class);
     }
 
     @Override
     public void _physicsProcess(double delta) {
-        if (is_visible_in_tree()) {
+        if (isVisibleInTree()) {
             updateThrowVelocity();
         }
     }
@@ -58,71 +59,42 @@ public class GrenadeLauncher extends Node3D {
         this.throwDirection = direction;
     }
 
-    public boolean throwGrenade(Godot player) {
-        Godot grenade = GameUtils.loadAndInstantiate(GRENADE_SCENE_PATH);
+    public boolean throwGrenade(Player player) {
+        Grenade grenade = GameUtils.loadAndInstantiate(GRENADE_SCENE_PATH, Grenade.class);
         if (grenade == null) return false;
 
-        Godot parent = (Godot) call("get_parent");
+        Node parent = getParent();
         if (parent != null) {
-            parent.call("add_child", grenade);
+            parent.addChild(grenade);
         }
 
-        // Set position from launch point
         if (launchPoint != null) {
-            Object globalPos = launchPoint.call("get_global_position");
-            if (globalPos instanceof Vector3 pos) {
-                grenade.call("set_global_position", pos);
-            }
+            grenade.setGlobalPosition(launchPoint.getGlobalPosition());
         }
 
-        // Throw
-        grenade.call("throw_grenade", throwVelocity);
-
-        // Add collision exception for player
-        grenade.call("add_collision_exception_with", player);
-
+        grenade.throwGrenade(throwVelocity);
+        grenade.addCollisionExceptionWith(player);
         return true;
     }
 
     private void updateThrowVelocity() {
-        // Simplified ballistic calculation
-        Godot camera = (Godot) call("get_viewport");
-        if (camera == null) return;
-        Object camera3d = camera.call("get_camera_3d");
-        if (camera3d == null) return;
+        if (getViewport() == null || getViewport().getCamera3d() == null) return;
 
-        // Calculate throw direction from camera
         Vector3 forward = throwDirection.length() > 0.01 ? throwDirection : new Vector3(0, 0, -1);
-
-        // Simple ballistic: aim upward at 45 degrees
         double upRatio = 0.5;
         double throwDistance = minThrowDistance + (maxThrowDistance - minThrowDistance) * upRatio;
-
-        // Target position
         Vector3 targetPos = fromLookPosition.add(forward.mul(throwDistance));
 
-        // Check if raycast hits a targeteable
-        if (raycast != null) {
-            Object isColliding = raycast.call("is_colliding");
-            if (isColliding instanceof Boolean colliding && colliding) {
-                Object collider = raycast.call("get_collider", 0);
-                if (collider instanceof Godot c) {
-                    Object inGroup = c.call("is_in_group", "targeteables");
-                    if (inGroup instanceof Boolean isTarget && isTarget) {
-                        Object hitPos = raycast.call("get_collision_point", 0);
-                        if (hitPos instanceof Vector3 hp) {
-                            targetPos = hp;
-                        }
-                    }
-                }
+        if (raycast != null && raycast.isColliding()) {
+            Godot collider = raycast.getCollider(0);
+            if (collider instanceof Node node && node.isInGroup("targeteables")) {
+                targetPos = raycast.getCollisionPoint(0);
             }
         }
 
-        // Calculate ballistic velocity
         Vector3 delta = targetPos.sub(fromLookPosition);
         double horizontalDist = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
         double heightDiff = delta.y;
-
         double peakHeight = Math.max(heightDiff + 2.0, 3.0);
         double timeUp = Math.sqrt(2.0 * peakHeight / gravity);
         double timeDown = Math.sqrt(2.0 * (peakHeight - heightDiff) / gravity);
@@ -132,7 +104,6 @@ public class GrenadeLauncher extends Node3D {
 
         double forwardSpeed = horizontalDist / totalTime;
         double upSpeed = Math.sqrt(2.0 * gravity * peakHeight);
-
         Vector3 horizontalDir = new Vector3(delta.x, 0, delta.z).normalized();
         throwVelocity = horizontalDir.mul(forwardSpeed).add(new Vector3(0, upSpeed, 0));
     }
