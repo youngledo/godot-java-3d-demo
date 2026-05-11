@@ -131,35 +131,40 @@ tests/
 └── test_stability.gd            # Input actions, key press safety, player structure
 ```
 
-### Add a New Test
+### Add a New Test Node
 
-1. Create `tests/test_<name>.gd`:
+1. Create a Java class under `src/main/java/demo/tests/`:
 
-```gdscript
-extends GutTest
+```java
+package demo.tests;
 
-var player: Node3D
+import org.godot.annotation.GodotClass;
+import org.godot.node.Label;
+import org.godot.node.Node;
+import org.godot.node.Node3D;
 
-func _find(path: String) -> Node:
-    var root = get_tree().root
-    var pg = root.find_child("Playground", true, false)
-    if pg:
-        return pg.get_node_or_null(path)
-    return null
+@GodotClass(name = "StartupCheck", parent = "Node3D")
+public class StartupCheck extends Node3D {
 
-func before_all():
-    await get_tree().process_frame
-    player = _find("Player") as Node3D
-    get_tree().paused = false
-    await get_tree().process_frame
+    @Override
+    public void _ready() {
+        Node node = getTree().getRoot().findChild("Player", true, false);
+        Node3D player = node instanceof Node3D node3D ? node3D : null;
 
-func test_something():
-    assert_not_null(player, "Player should exist")
+        Label label = Label.create();
+        label.setText(player != null ? "Player found" : "Player missing");
+        addChild(label);
+    }
+}
 ```
 
-2. GUT auto-discovers files matching `test_*.gd` in `res://tests/`.
+2. Add a node with the registered Java type to a scene:
 
-3. Run `./run_tests.sh` to verify.
+```ini
+[node name="StartupCheck" type="StartupCheck"]
+```
+
+3. Run `mvn package`, then `./run_tests.sh` or open the project in Godot.
 
 ### Notes
 
@@ -172,11 +177,11 @@ func test_something():
 All 26 GDScript classes from the original demo have been converted to Java using godot-java annotations:
 
 - `@GodotClass(name, parent)` — registers Java class as a Godot node type
-- `@GodotMethod` — exposes methods to GDScript
+- `@GodotMethod` — exposes Java methods to Godot
 - `@Export` — makes properties visible in Godot Inspector
 - `@Signal` — declares Godot signals
 
-Bridge GDScript files (`extends ClassName`) connect the Godot scene references to the Java-registered classes.
+Godot scenes reference the Java-registered class names directly as node types.
 
 ## License
 

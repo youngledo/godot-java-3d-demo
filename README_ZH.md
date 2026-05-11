@@ -131,35 +131,40 @@ tests/
 └── test_stability.gd            # 输入映射、按键安全性、玩家结构
 ```
 
-### 新增测试
+### 新增测试节点
 
-1. 创建 `tests/test_<名称>.gd`：
+1. 在 `src/main/java/demo/tests/` 下创建 Java 类：
 
-```gdscript
-extends GutTest
+```java
+package demo.tests;
 
-var player: Node3D
+import org.godot.annotation.GodotClass;
+import org.godot.node.Label;
+import org.godot.node.Node;
+import org.godot.node.Node3D;
 
-func _find(path: String) -> Node:
-    var root = get_tree().root
-    var pg = root.find_child("Playground", true, false)
-    if pg:
-        return pg.get_node_or_null(path)
-    return null
+@GodotClass(name = "StartupCheck", parent = "Node3D")
+public class StartupCheck extends Node3D {
 
-func before_all():
-    await get_tree().process_frame
-    player = _find("Player") as Node3D
-    get_tree().paused = false
-    await get_tree().process_frame
+    @Override
+    public void _ready() {
+        Node node = getTree().getRoot().findChild("Player", true, false);
+        Node3D player = node instanceof Node3D node3D ? node3D : null;
 
-func test_something():
-    assert_not_null(player, "Player should exist")
+        Label label = Label.create();
+        label.setText(player != null ? "Player found" : "Player missing");
+        addChild(label);
+    }
+}
 ```
 
-2. GUT 自动发现 `res://tests/` 下匹配 `test_*.gd` 的文件。
+2. 在场景中添加使用已注册 Java 类型的节点：
 
-3. 运行 `./run_tests.sh` 验证。
+```ini
+[node name="StartupCheck" type="StartupCheck"]
+```
+
+3. 运行 `mvn package`，再执行 `./run_tests.sh` 或在 Godot 中打开项目。
 
 ### 注意事项
 
@@ -172,11 +177,11 @@ func test_something():
 原始 demo 的全部 26 个 GDScript 类已完整转换为 Java，使用 godot-java 注解：
 
 - `@GodotClass(name, parent)` — 将 Java 类注册为 Godot 节点类型
-- `@GodotMethod` — 将方法暴露给 GDScript
+- `@GodotMethod` — 将 Java 方法暴露给 Godot
 - `@Export` — 将属性显示在 Godot Inspector 中
 - `@Signal` — 声明 Godot 信号
 
-桥接 GDScript 文件（`extends ClassName`）将 Godot 场景引用连接到 Java 注册的类。
+Godot 场景直接使用 Java 注册类名作为节点类型。
 
 ## 许可证
 
