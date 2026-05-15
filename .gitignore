@@ -11,6 +11,12 @@ bin/
 target/
 META-INF/
 
+# Maven-generated runtime files
+godot-java/*.jar
+godot-java/*.so
+godot-java/*.dylib
+godot-java/*.dll
+
 # OS
 .DS_Store
 

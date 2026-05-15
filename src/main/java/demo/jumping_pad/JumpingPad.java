@@ -38,8 +38,8 @@ public class JumpingPad extends Area3D {
                     tween.tweenProperty(mushroom, "scale:y", 0.4, 0.1);
                     PropertyTweener step = tween.tweenProperty(mushroom, "scale:y", 1.0, 0.5);
                     if (step != null) {
-                        step.setEase(2);
-                        step.setTrans(5);
+                        step.setEase(Tween.EaseType.EASE_IN_OUT);
+                        step.setTrans(Tween.TransitionType.TRANS_EXPO);
                     }
                 }
             }

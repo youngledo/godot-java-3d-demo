@@ -3,6 +3,7 @@ package demo.enemies.smoke_puff;
 import org.godot.annotation.GodotClass;
 import org.godot.node.AnimationPlayer;
 import org.godot.node.AudioStreamPlayer3D;
+import org.godot.collection.GodotArray;
 import org.godot.node.Node;
 import org.godot.node.Node3D;
 
@@ -18,10 +19,11 @@ public class SmokePuff extends Node3D {
         smokeSounds = getNode("SmokeSounds");
 
         if (smokeSounds != null) {
-            Node[] children = smokeSounds.getChildren();
-            if (children.length > 0) {
-                int idx = (int) (Math.random() * children.length);
-                if (children[idx] instanceof AudioStreamPlayer3D sound) {
+            GodotArray<Node> children = smokeSounds.getChildren();
+            if (children.size() > 0) {
+                int idx = (int) (Math.random() * children.size());
+                Object child = children.get(idx);
+                if (child instanceof AudioStreamPlayer3D sound) {
                     sound.play();
                 }
             }

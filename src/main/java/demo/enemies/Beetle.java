@@ -17,6 +17,7 @@ import org.godot.node.NavigationAgent3D;
 import org.godot.node.Node;
 import org.godot.node.RigidBody3D;
 import org.godot.node.SceneTree;
+import org.godot.node.PhysicsServer3D;
 import org.godot.node.SceneTreeTimer;
 
 @GodotClass(name = "Beetle", parent = "RigidBody3D")
@@ -133,9 +134,9 @@ public class Beetle extends RigidBody3D implements Damageable {
             deathCollisionShape.setDisabled(false);
         }
 
-        setAxisLock(0, false);
-        setAxisLock(1, false);
-        setAxisLock(2, false);
+        setAxisLock(PhysicsServer3D.BodyAxis.BODY_AXIS_LINEAR_X, false);
+        setAxisLock(PhysicsServer3D.BodyAxis.BODY_AXIS_LINEAR_Y, false);
+        setAxisLock(PhysicsServer3D.BodyAxis.BODY_AXIS_LINEAR_Z, false);
         setGravityScale(1.0);
 
         SceneTree tree = getTree();

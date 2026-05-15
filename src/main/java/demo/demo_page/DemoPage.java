@@ -67,7 +67,7 @@ public class DemoPage extends Node {
             joypadButton.connect("pressed", new org.godot.core.Callable(this, "showJoypad"));
         }
 
-        if (Input.singleton().getConnectedJoypads().length == 0) {
+        if (Input.singleton().getConnectedJoypads().size() == 0) {
             showKeyboard();
         } else {
             showJoypad();

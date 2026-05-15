@@ -14,11 +14,15 @@
     <properties>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <godot-java.version>0.1.1</godot-java.version>
+        <godot-java.version>0.1.4-SNAPSHOT</godot-java.version>
         <log4j2.version>2.25.4</log4j2.version>
         <maven-compiler-plugin.version>4.0.0-beta-4</maven-compiler-plugin.version>
         <maven-shade-plugin.version>3.5.1</maven-shade-plugin.version>
         <maven-enforcer-plugin.version>3.6.2</maven-enforcer-plugin.version>
+        <maven-dependency-plugin.version>3.7.0</maven-dependency-plugin.version>
+        <godot.runtime.dir>${project.basedir}/godot-java</godot.runtime.dir>
+        <godot.java.native.classifier>unsupported</godot.java.native.classifier>
+        <godot.java.native.library>unsupported</godot.java.native.library>
     </properties>
 
     <dependencies>
@@ -104,28 +108,102 @@
                             </target>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>sync-godot-java-app</id>
+                        <phase>package</phase>
+                        <goals><goal>run</goal></goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${godot.runtime.dir}"/>
+                                <copy file="${project.build.directory}/godot-java-3d-demo.jar" tofile="${godot.runtime.dir}/app.jar"/>
+                            </target>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>3.3.1</version>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>${maven-dependency-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>deploy-jar-to-native</id>
+                        <id>sync-godot-java-native</id>
                         <phase>package</phase>
-                        <goals><goal>copy-resources</goal></goals>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
                         <configuration>
-                            <outputDirectory>${project.basedir}/native</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${project.build.directory}</directory>
-                                    <includes><include>godot-java-3d-demo.jar</include></includes>
-                                </resource>
-                            </resources>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>io.github.youngledo</groupId>
+                                    <artifactId>godot-java-native</artifactId>
+                                    <version>${godot-java.version}</version>
+                                    <type>zip</type>
+                                    <classifier>${godot.java.native.classifier}</classifier>
+                                    <outputDirectory>${godot.runtime.dir}</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                            <includes>${godot.java.native.library}</includes>
+                            <overWriteReleases>true</overWriteReleases>
+                            <overWriteSnapshots>true</overWriteSnapshots>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>native-macos</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                </os>
+            </activation>
+            <properties>
+                <godot.java.native.classifier>macos-universal</godot.java.native.classifier>
+                <godot.java.native.library>libgodot-java.dylib</godot.java.native.library>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-linux-x86_64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <godot.java.native.classifier>linux-x86_64</godot.java.native.classifier>
+                <godot.java.native.library>libgodot-java.so</godot.java.native.library>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-linux-aarch64</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <godot.java.native.classifier>linux-aarch64</godot.java.native.classifier>
+                <godot.java.native.library>libgodot-java.so</godot.java.native.library>
+            </properties>
+        </profile>
+        <profile>
+            <id>native-windows-amd64</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <properties>
+                <godot.java.native.classifier>windows-x86_64</godot.java.native.classifier>
+                <godot.java.native.library>libgodot-java.dll</godot.java.native.library>
+            </properties>
+        </profile>
+    </profiles>
 </project>

@@ -64,7 +64,9 @@ public class Grenade extends org.godot.node.CharacterBody3D {
         }
 
         if (explosionArea != null) {
-            for (Node3D body : explosionArea.getOverlappingBodies()) {
+            org.godot.collection.GodotArray<org.godot.node.Node3D> bodies = explosionArea.getOverlappingBodies();
+            for (int i = 0; i < bodies.size(); i++) {
+                org.godot.node.Node3D body = bodies.get(i);
                 if (body instanceof Player) continue;
                 if (body instanceof Damageable damageable) {
                     Vector3 impactPoint = getPosition();
